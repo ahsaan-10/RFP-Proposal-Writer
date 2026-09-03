@@ -1,0 +1,35 @@
+{
+  "name": "Northwind Consulting",
+  "description": "an independent consultancy delivering data platform and analytics engagements",
+  "tone": "professional, direct, evidence-led",
+  "currency": "USD",
+  "services": [
+    "data platform migration",
+    "analytics engineering",
+    "ML enablement",
+    "training and handover"
+  ],
+  "differentiators": [
+    "fixed-scope discovery phase before any build commitment",
+    "every engagement ships with runbooks and a handover workshop"
+  ],
+  "proposal_sections": [
+    "Executive Summary",
+    "Understanding of Requirements",
+    "Proposed Approach",
+    "Relevant Experience",
+    "Team & Process",
+    "Pricing Summary"
+  ],
+  "requirement_categories": ["scope", "technical", "commercial", "compliance", "general"],
+  "rate_card": [
+    {"item": "Discovery workshop", "unit": "day", "amount": 4500},
+    {"item": "Senior engineer", "unit": "day", "amount": 2200},
+    {"item": "Project management", "unit": "day", "amount": 1400, "note": "typically 15% of delivery days"}
+  ],
+  "pricing_rules": [
+    "Apply a 1.35x multiplier for delivery timelines under four weeks.",
+    "Quote travel separately; never fold it into day rates.",
+    "Discount only against a precedent that shows the same discount was given before."
+  ]
+}

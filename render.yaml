@@ -1,0 +1,23 @@
+# Render Blueprint. In Render: New > Blueprint > point at this repo.
+# DATABASE_URL comes from Neon; the two secrets are set in the Render dashboard.
+services:
+  - type: web
+    name: rfp-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL        # Neon pooled connection string, ends with ?sslmode=require
+        sync: false
+      - key: ALLOWED_ORIGINS     # your Vercel URL, e.g. https://rfp-writer.vercel.app
+        sync: false
+      - key: LLM_PROVIDER
+        value: anthropic
+      - key: ANTHROPIC_API_KEY   # leave unset until you have a key; drafting stays disabled
+        sync: false
+      - key: EMBEDDING_PROVIDER  # switch to openai once you add an OpenAI key
+        value: stub
+      - key: ORG_PROFILE_PATH
+        value: profile.json
