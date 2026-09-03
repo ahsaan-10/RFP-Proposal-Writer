@@ -8,7 +8,8 @@ def main():
     folder = Path(sys.argv[1] if len(sys.argv) > 1 else "/corpus")
     init_db()
     files = [p for p in sorted(folder.iterdir())
-             if p.suffix.lower() in (".pdf", ".docx", ".md", ".txt")]
+             if p.suffix.lower() in (".pdf", ".docx", ".md", ".txt")
+             and p.name.lower() != "readme.md"]
     if not files:
         print(f"No documents found in {folder}. Add PDF/DOCX/MD/TXT files and re-run.")
         return

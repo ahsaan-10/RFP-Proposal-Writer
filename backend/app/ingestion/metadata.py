@@ -15,9 +15,13 @@ def load_metadata(path: Path, text_preview: str) -> DocMetadata:
     profile = load_profile()
     hint = ("Known service types: " + profile.services_text() + ". "
             "Use one of these when it fits; otherwise use your own short label.")
-    data = chat_json(
-        "You extract metadata from business documents.",
-        "From this document excerpt, return JSON with keys "
-        "industry, service_type, year (int or null), outcome (won|lost|unknown). "
-        + hint + chr(10) + chr(10) + text_preview[:3000])
+    try:
+        data = chat_json(
+            "You extract metadata from business documents.",
+            "From this document excerpt, return JSON with keys "
+            "industry, service_type, year (int or null), outcome (won|lost|unknown). "
+            + hint + chr(10) + chr(10) + text_preview[:3000])
+    except Exception as exc:  # no LLM key, or the call failed: keep ingestion working
+        print(f"  metadata inference unavailable for {path.name} ({type(exc).__name__}); using neutral defaults. Add a sidecar .meta.json to set it explicitly.")
+        data = {}
     return DocMetadata(doc_id=path.stem, filename=path.name, **data)

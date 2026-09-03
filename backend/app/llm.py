@@ -2,13 +2,18 @@
 import hashlib, json, re
 from .config import settings
 
-def chat(system: str, user: str, temperature: float = 0.2, max_tokens: int = 4096) -> str:
+def chat(system: str, user: str, temperature: float = 0.2, max_tokens: int = 16000) -> str:
     if settings.llm_provider == "anthropic":
         import anthropic
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        # Current Claude models reject temperature/top_p; depth is set with
+        # output_config.effort instead. temperature is honoured for OpenAI only.
         msg = client.messages.create(
-            model=settings.anthropic_model, max_tokens=max_tokens, temperature=temperature,
-            system=system, messages=[{"role": "user", "content": user}])
+            model=settings.anthropic_model,
+            max_tokens=max_tokens,
+            output_config={"effort": settings.anthropic_effort},
+            system=system,
+            messages=[{"role": "user", "content": user}])
         return "".join(b.text for b in msg.content if b.type == "text")
     if settings.llm_provider == "openai":
         from openai import OpenAI

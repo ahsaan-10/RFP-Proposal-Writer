@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=_env_file(), extra="ignore")
     llm_provider: str = "anthropic"
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-4-5"
+    anthropic_model: str = "claude-opus-5"
+    anthropic_effort: str = "medium"   # low | medium | high | xhigh | max
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
     embedding_provider: str = "openai"          # openai | stub
