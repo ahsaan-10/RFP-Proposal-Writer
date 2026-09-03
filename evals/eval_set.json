@@ -2,13 +2,26 @@
   {
     "id": "eval-01",
     "rfp_excerpt": "We are seeking a partner to deliver a full replacement of our reporting platform, including migration of historic data and training for 40 internal users.",
-    "expected_doc_ids": ["FILL_IN"],
-    "required_sections": ["Executive Summary", "Relevant Experience", "Pricing Summary"]
+    "expected_doc_ids": [
+      "meridian-health-platform-2024"
+    ],
+    "required_sections": [
+      "Executive Summary",
+      "Relevant Experience",
+      "Pricing Summary"
+    ]
   },
   {
     "id": "eval-02",
     "rfp_excerpt": "Vendor must supply a fixed-price statement of work for a six-week engagement, with named team members and a defined handover at completion.",
-    "expected_doc_ids": ["FILL_IN"],
-    "required_sections": ["Executive Summary", "Proposed Approach", "Pricing Summary"]
+    "expected_doc_ids": [
+      "northwind-rate-card-2025",
+      "northwind-capability-statement"
+    ],
+    "required_sections": [
+      "Executive Summary",
+      "Proposed Approach",
+      "Pricing Summary"
+    ]
   }
 ]
