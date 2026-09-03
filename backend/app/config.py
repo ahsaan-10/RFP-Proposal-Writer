@@ -1,7 +1,19 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
+def _env_file() -> str:
+    """Find .env whether the app is launched from the repo root, from backend/,
+    or from /app inside the container."""
+    for base in (Path.cwd(), *Path(__file__).resolve().parents):
+        if (base / ".env").is_file():
+            return str(base / ".env")
+    return ".env"
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_env_file(), extra="ignore")
     llm_provider: str = "anthropic"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5"

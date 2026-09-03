@@ -34,6 +34,13 @@ export default function Home() {
         {busy ? "Agent is working — extracting, retrieving, drafting…" : "Drop a PDF / DOCX / TXT RFP here, or click to browse"}
         <input type="file" accept=".pdf,.docx,.txt,.md" hidden onChange={onUpload} disabled={busy} />
       </label>
+      {!process.env.NEXT_PUBLIC_API_URL && (
+        <p style={{ marginTop: 16, padding: 12, background: "#fff7ed", border: "1px solid #fed7aa",
+                    borderRadius: 8, color: "#7c2d12", fontSize: 14 }}>
+          No backend configured. Set <code>NEXT_PUBLIC_API_URL</code> in the project's
+          environment variables and redeploy. Until then, uploads will fail.
+        </p>
+      )}
       {error && <p style={{ color: "#b00020", marginTop: 16 }}>{error}</p>}
     </main>
   );

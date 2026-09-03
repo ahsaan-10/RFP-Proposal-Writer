@@ -44,6 +44,20 @@ make ingest                   # parse -> chunk by section -> embed -> store
 # 2. Open http://localhost:3000, upload an RFP, review the draft, approve or send back
 ```
 
+## Running without Docker (Windows)
+
+Docker is optional. Point `DATABASE_URL` at any Postgres that allows the `vector`
+extension (a free Neon project works), then:
+
+```powershell
+.\scripts\dev.ps1 test      # 8 tests, no database needed
+.\scripts\dev.ps1 ingest    # load .\corpus
+.\scripts\dev.ps1           # API on http://localhost:8000
+cd frontend; npm install; npm run dev   # UI on http://localhost:3000
+```
+
+Deploying to Neon + Render + Vercel: see [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Make it yours
 
 Everything company-specific lives in `profile.json` at the repo root. Nothing else
