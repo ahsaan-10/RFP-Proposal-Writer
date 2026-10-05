@@ -1,134 +1,105 @@
 # RFP Proposal Writer
 
-Agentic RAG system that turns an uploaded RFP into a cited, priced proposal draft —
-with a mandatory human approval gate before anything ships.
+**An LLM workflow for turning an RFP into a proposal draft with retrieved evidence, pricing suggestions, and human review.**
 
-Upload RFP → extract requirements → hybrid retrieval over your past proposals →
-pricing from precedents + rate card → section-by-section draft with citations →
-**human interrupt (edit / approve / reject-with-feedback)** → export DOCX.
+[Demo interface](https://rfp-proposal-writer-dusky.vercel.app) · [Architecture](docs/architecture.md) · [Deployment](docs/DEPLOY.md)
 
-## Demo
+## The problem it addresses
 
-[3-minute Loom walkthrough](FILL_IN) · Architecture: [docs/architecture.md](docs/architecture.md)
+Proposal writing involves reading requirements, finding relevant past work, assembling pricing, and keeping claims tied to evidence. This prototype brings those steps into one reviewable workflow.
 
-Domain-agnostic by design: the agent knows nothing about any particular company.
-Who it writes for, what it sells, how it prices, and which sections a proposal needs
-all come from one editable file (`profile.json`). A consultancy, a software vendor,
-a construction firm, or a staffing agency runs the same codebase.
+## What it does
+
+1. Accepts an RFP as PDF, DOCX, or TXT and extracts requirements.
+2. Retrieves relevant evidence from an ingested document corpus using vector search and PostgreSQL full-text search, merged with reciprocal rank fusion.
+3. Drafts pricing using retrieved precedents and a configurable rate card.
+4. Generates proposal sections with citation references and an LLM citation audit.
+5. Pauses the LangGraph workflow for review; rejection with feedback returns to drafting.
+6. Provides a DOCX export endpoint.
+
+Business identity, services, proposal sections, pricing rules, and tone come from `profile.json`, rather than a company hardcoded in the application.
+
+## Implementation status
+
+The review interrupt and revision loop are implemented. **The current export endpoint does not check approval status**, so workflow review is not yet a server-enforced export restriction. Graph checkpoints use `MemorySaver` and do not survive a process restart. Citation auditing is model-assisted and does not guarantee factual correctness.
+
+The hosted link exposes the frontend. End-to-end generation requires a working API, PostgreSQL with pgvector, an ingested corpus, and a configured model provider.
 
 ## Stack
 
-| Layer | Pick | Why |
-|---|---|---|
-| Language | Python 3.11+ | Industry default for AI backends |
-| Orchestration | LangGraph | Cyclic, stateful agent workflows; first-class human-in-the-loop primitives (interrupt / resume) |
-| LLM | Claude API or GPT API | One thin client abstraction (`app/llm.py`), swap via `LLM_PROVIDER` |
-| Vector DB | Postgres + pgvector | One database for vectors, full-text, and metadata |
-| Hybrid search | Vector + BM25 (Postgres FTS), merged via RRF, optional Cohere re-rank | The "hybrid RAG" checkbox, done properly |
-| Doc parsing | pypdf / python-docx (Docling-compatible interface) | Handles PDF/DOCX RFPs |
-| Backend | FastAPI | Standard |
-| Frontend | Next.js | Deliberately simple: upload + review |
-| Evals | Custom harness (`evals/`), LangSmith/Langfuse-ready | The differentiator |
+| Layer | Technology |
+| --- | --- |
+| Workflow | Python, LangGraph |
+| Model access | Claude or OpenAI through a client abstraction |
+| Retrieval | PostgreSQL, pgvector, full-text search, reciprocal rank fusion; optional Cohere reranking |
+| API | FastAPI |
+| Interface | Next.js, React |
+| Documents | pypdf, python-docx |
 
-## Quickstart
+## Run locally
+
+Prerequisites: Docker with Compose for the container setup; a configured model API key for real generation.
 
 ```bash
-cp .env.example .env             # add your ANTHROPIC_API_KEY or OPENAI_API_KEY
-cp profile.example.json profile.json   # then edit it: your name, services, rate card
-docker compose up --build     # db + backend (:8000) + frontend (:3000)
-
-# 1. Drop 30-50 anonymized proposals/case studies/pricing docs into corpus/
-#    (optional per-doc sidecar: acme.pdf.meta.json — see corpus/README.md)
-make ingest                   # parse -> chunk by section -> embed -> store
-
-# 2. Open http://localhost:3000, upload an RFP, review the draft, approve or send back
+git clone https://github.com/ahsaan-10/RFP-Proposal-Writer.git
+cd RFP-Proposal-Writer
+cp .env.example .env
+cp profile.example.json profile.json
 ```
 
-## Running without Docker (Windows)
+Edit `.env` for the selected model and embedding providers, and personalize `profile.json`. Then:
 
-Docker is optional. Point `DATABASE_URL` at any Postgres that allows the `vector`
-extension (a free Neon project works), then:
+```bash
+docker compose up --build
+```
+
+Place sample or anonymized documents in `corpus/`, then run ingestion from another terminal:
+
+```bash
+docker compose exec backend python -m app.ingestion.run_ingest /corpus
+```
+
+Open the frontend at `http://localhost:3000`; the API runs at `http://localhost:8000`.
+
+For Windows without Docker, configure a PostgreSQL instance supporting the `vector` extension and use:
 
 ```powershell
-.\scripts\dev.ps1 test      # 8 tests, no database needed
-.\scripts\dev.ps1 ingest    # load .\corpus
-.\scripts\dev.ps1           # API on http://localhost:8000
-cd frontend; npm install; npm run dev   # UI on http://localhost:3000
+Copy-Item .env.example .env
+Copy-Item profile.example.json profile.json
+.\scripts\dev.ps1 test
+.\scripts\dev.ps1 ingest
+.\scripts\dev.ps1
 ```
 
-Deploying to Neon + Render + Vercel: see [docs/DEPLOY.md](docs/DEPLOY.md).
+The helper expects Python 3.11 through the Windows `py` launcher. Start the frontend in a separate terminal using `npm install` and `npm run dev` from `frontend/`.
 
-## Make it yours
+## Evaluation
 
-Everything company-specific lives in `profile.json` at the repo root. Nothing else
-needs editing to point the system at a different business.
-
-| Field | What it controls |
-|---|---|
-| `name`, `description`, `tone` | Who the writer is speaking as, and how |
-| `services` | Vocabulary for the writer, plus the hint used when inferring corpus metadata |
-| `differentiators` | Positioning the writer may reinforce, but only where evidence supports it |
-| `proposal_sections` | The exact sections drafted, in order (rename, reorder, add, drop) |
-| `requirement_categories` | The taxonomy the RFP extractor sorts requirements into |
-| `rate_card` + `pricing_rules` | The fallback pricing used when no precedent is retrieved |
-| `currency` | Currency on every priced line |
-
-Leave the file out entirely and the system falls back to a neutral default profile,
-so a fresh clone still runs end to end.
-
-## Design decisions
-
-- **No company is hard-coded.** Prompts are rendered from the profile at call time
-  (`app/profile.py`, `app/agent/prompts.py`), so switching industries is a config
-  change, not a fork.
-
-- **Chunk by document structure, not fixed 500-token blocks.** Proposals are
-  sectioned documents; splitting mid-section destroys retrieval quality.
-  (`app/ingestion/chunker.py`)
-- **Hybrid retrieval is tested before agents exist.** `evals/run_eval.py` measures
-  precision/recall against hand-labeled expectations.
-- **The writer may not fabricate.** Every factual claim needs a `[n]` citation to a
-  retrieved chunk; unsupported claims must be marked `[GAP — needs human input]`.
-  A separate audit node verifies citations on every draft.
-- **Human approval is a graph interrupt, not a UI afterthought.** The run pauses
-  inside LangGraph; the reviewer edits/approves/rejects; rejection loops back to
-  the writer with feedback.
-- **Pricing is precedent-first.** Retrieved pricing history beats the rate card;
-  every line is labeled `precedent:<doc_id>` or `rule`, with uncertainty flagged.
-
-## Evals
-
-Latest run — [evals/results.md](evals/results.md) (generated by `make eval`).
-
-| Metric | Value | Conditions |
-|---|---|---|
-| Retrieval recall (top-8) | 1.00 | 5-document sample corpus, stub embeddings |
-| Retrieval precision (top-8) | 0.33 | low by construction: top-8 over 5 documents returns nearly everything |
-| Citation accuracy (audit node) | not yet measured | needs an LLM key |
-| Hallucinated-claims rate | not yet measured | needs an LLM key |
-
-These numbers come from `EMBEDDING_PROVIDER=stub`, a deterministic hash embedding with
-no semantic meaning, so ranking quality is not being measured yet: only that hybrid
-retrieval, fusion, and the eval harness work end to end. Re-run `make eval` after
-switching to real embeddings and a full corpus, and replace this table.
-
-## Repo layout
-
+```bash
+docker compose exec backend pytest -q
+docker compose exec backend python /app/evals/run_eval.py
 ```
+
+The previous README reported retrieval recall of 1.00 and precision of 0.33 on a five-document corpus with deterministic stub embeddings. These figures describe a small pipeline exercise; they do not measure semantic retrieval quality. Citation accuracy and hallucinated-claim rate were not measured. Re-run the harness with real embeddings and representative documents before reporting model quality.
+
+## Repository map
+
+```text
 backend/app/
-  ingestion/    parse (pdf/docx) -> section chunker -> metadata -> embed -> store
-  retrieval/    hybrid.py — pgvector + FTS + RRF + optional Cohere rerank
-  agent/        graph.py — LangGraph nodes, prompts.py, state.py
-  api/          routes.py — documents / proposals / resume / export
-  export/       docx_export.py
-frontend/       Next.js upload + review UI (intentionally minimal)
-evals/          eval_set.json + run_eval.py -> results.md
-profile.json    who the proposals are written for (name, services, sections, rates)
-corpus/         your anonymized source docs (gitignored)
-docs/           architecture diagram
+  ingestion/    Document parsing, section chunking, metadata, storage
+  retrieval/    Hybrid retrieval and evidence ranking
+  agent/        Workflow graph, prompts, and state
+  api/          Upload, status, review, and export routes
+  export/       DOCX generation
+backend/tests/  Chunking, profile, and rank-fusion checks
+frontend/       Upload and review interface
+evals/          Retrieval evaluation set and runner
+corpus/         Source-document instructions
+docs/           Architecture and deployment guide
+scripts/        Windows development helper
+profile.json    Business-specific configuration
 ```
 
-## Cost of running
+## A short walkthrough
 
-Backend on a $5 VPS or Railway/Render free tier; frontend on Vercel free;
-a few dollars of API tokens per month. Total: **~$5–10/month**.
+Use sample documents, upload an RFP, inspect extracted requirements and draft citations, request a revision, and show the resulting DOCX. Describe the review interrupt and export restriction separately when presenting the prototype.
