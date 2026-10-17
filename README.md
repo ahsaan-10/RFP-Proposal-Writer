@@ -1,67 +1,88 @@
 # RFP Proposal Writer
 
-**An LLM workflow for turning an RFP into a proposal draft with retrieved evidence, pricing suggestions, and human review.**
+**An agentic LLM workflow that reads a Request for Proposal, retrieves evidence from past documents, drafts a priced proposal with citations, and pauses for human review.**
 
-[Demo interface](https://rfp-proposal-writer-dusky.vercel.app) · [Architecture](docs/architecture.md) · [Deployment](docs/DEPLOY.md)
+[![tests](https://github.com/ahsaan-10/RFP-Proposal-Writer/actions/workflows/tests.yml/badge.svg)](https://github.com/ahsaan-10/RFP-Proposal-Writer/actions/workflows/tests.yml)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-agent-1C3C3C?logo=langchain&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-UI-000000?logo=nextdotjs&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## The problem it addresses
+[Live interface](https://rfp-proposal-writer-dusky.vercel.app) · [Architecture](docs/architecture.md) · [Deployment guide](docs/DEPLOY.md)
 
-Proposal writing involves reading requirements, finding relevant past work, assembling pricing, and keeping claims tied to evidence. This prototype brings those steps into one reviewable workflow.
+---
 
-## What it does
+## Why this matters
 
-1. Accepts an RFP as PDF, DOCX, or TXT and extracts requirements.
-2. Retrieves relevant evidence from an ingested document corpus using vector search and PostgreSQL full-text search, merged with reciprocal rank fusion.
-3. Drafts pricing using retrieved precedents and a configurable rate card.
-4. Generates proposal sections with citation references and an LLM citation audit.
-5. Pauses the LangGraph workflow for review; rejection with feedback returns to drafting.
-6. Provides a DOCX export endpoint.
+Responding to an RFP means reading dozens of requirements, digging up relevant past work, building a price, and making sure every claim is backed by evidence. This project turns that into one reviewable pipeline: the model does the drafting, retrieval keeps it grounded in real documents, and a human approves before anything is exported.
 
-Business identity, services, proposal sections, pricing rules, and tone come from `profile.json`, rather than a company hardcoded in the application.
+## Key features
 
-## Implementation status
+| Feature | How it works |
+| --- | --- |
+| **Requirement extraction** | Parses PDF, DOCX, or TXT and extracts structured requirements as JSON. |
+| **Hybrid retrieval (RAG)** | Combines pgvector semantic search with PostgreSQL full-text search, merged by reciprocal rank fusion; optional Cohere reranking. |
+| **Pricing drafts** | Builds a price from a configurable rate card, pricing rules, and retrieved precedents. |
+| **Cited writing** | Drafts each proposal section with citation references, then runs an LLM citation audit. |
+| **Human in the loop** | The LangGraph workflow interrupts for review; rejecting with feedback sends it back to drafting. |
+| **DOCX export** | Produces an editable Word proposal. |
+| **Configurable, not hard-coded** | Company identity, services, sections, tone, and pricing all come from `profile.json`. |
+| **Model-agnostic** | Works with Claude or OpenAI through a thin client abstraction. |
 
-The review interrupt and revision loop are implemented. **The current export endpoint does not check approval status**, so workflow review is not yet a server-enforced export restriction. Graph checkpoints use `MemorySaver` and do not survive a process restart. Citation auditing is model-assisted and does not guarantee factual correctness.
+## How it works
 
-The hosted link exposes the frontend. End-to-end generation requires a working API, PostgreSQL with pgvector, an ingested corpus, and a configured model provider.
-
-## Stack
+```mermaid
+flowchart LR
+    U[RFP upload<br/>PDF / DOCX / TXT] --> A[Extract<br/>requirements]
+    A --> B[Retrieve evidence<br/>vector + full-text + RRF]
+    B --> C[Build pricing<br/>rate card + precedents]
+    C --> D[Write sections<br/>with citations]
+    D --> E{Human review<br/>LangGraph interrupt}
+    E -- feedback --> D
+    E -- approved --> F[Finalize<br/>DOCX export]
+    DB[(PostgreSQL<br/>pgvector + FTS)] --- B
+```
 
 | Layer | Technology |
 | --- | --- |
-| Workflow | Python, LangGraph |
-| Model access | Claude or OpenAI through a client abstraction |
-| Retrieval | PostgreSQL, pgvector, full-text search, reciprocal rank fusion; optional Cohere reranking |
+| Agent workflow | Python, LangGraph |
+| LLMs | Claude or OpenAI (switch with `LLM_PROVIDER`) |
+| Retrieval | PostgreSQL 16, pgvector, full-text search, reciprocal rank fusion |
 | API | FastAPI |
-| Interface | Next.js, React |
+| Frontend | Next.js, React |
 | Documents | pypdf, python-docx |
+| Infrastructure | Docker Compose, GitHub Actions |
 
-## Run locally
+## Getting started
 
-Prerequisites: Docker with Compose for the container setup; a configured model API key for real generation.
+**Requirements:** Docker with Compose, and an API key for your chosen model provider.
 
 ```bash
 git clone https://github.com/ahsaan-10/RFP-Proposal-Writer.git
 cd RFP-Proposal-Writer
-cp .env.example .env
-cp profile.example.json profile.json
-```
-
-Edit `.env` for the selected model and embedding providers, and personalize `profile.json`. Then:
-
-```bash
+cp .env.example .env                    # add your model and embedding settings
+cp profile.example.json profile.json    # describe your business
 docker compose up --build
 ```
 
-Place sample or anonymized documents in `corpus/`, then run ingestion from another terminal:
+Add sample or anonymised documents to `corpus/`, then index them:
 
 ```bash
 docker compose exec backend python -m app.ingestion.run_ingest /corpus
 ```
 
-Open the frontend at `http://localhost:3000`; the API runs at `http://localhost:8000`.
+| Service | URL |
+| --- | --- |
+| Web interface | http://localhost:3000 |
+| API (with interactive docs) | http://localhost:8000/docs |
 
-For Windows without Docker, configure a PostgreSQL instance supporting the `vector` extension and use:
+<details>
+<summary><b>Windows without Docker</b></summary>
+
+Use a PostgreSQL instance with the `vector` extension and Python 3.11, then:
 
 ```powershell
 Copy-Item .env.example .env
@@ -71,35 +92,45 @@ Copy-Item profile.example.json profile.json
 .\scripts\dev.ps1
 ```
 
-The helper expects Python 3.11 through the Windows `py` launcher. Start the frontend in a separate terminal using `npm install` and `npm run dev` from `frontend/`.
+Start the frontend separately with `npm install` and `npm run dev` inside `frontend/`.
+</details>
 
-## Evaluation
+## Testing and evaluation
 
 ```bash
-docker compose exec backend pytest -q
-docker compose exec backend python /app/evals/run_eval.py
+make test    # unit tests: chunking, profile loading, rank fusion (also run in CI)
+make eval    # retrieval precision/recall on evals/eval_set.json
 ```
 
-The previous README reported retrieval recall of 1.00 and precision of 0.33 on a five-document corpus with deterministic stub embeddings. These figures describe a small pipeline exercise; they do not measure semantic retrieval quality. Citation accuracy and hallucinated-claim rate were not measured. Re-run the harness with real embeddings and representative documents before reporting model quality.
+The included evaluation set is small and uses deterministic stub embeddings, so it checks that the pipeline works end to end rather than measuring real retrieval quality. Run it with real embeddings and representative documents before quoting quality numbers.
 
-## Repository map
+## Project structure
 
 ```text
-backend/app/
-  ingestion/    Document parsing, section chunking, metadata, storage
-  retrieval/    Hybrid retrieval and evidence ranking
-  agent/        Workflow graph, prompts, and state
-  api/          Upload, status, review, and export routes
-  export/       DOCX generation
-backend/tests/  Chunking, profile, and rank-fusion checks
-frontend/       Upload and review interface
-evals/          Retrieval evaluation set and runner
-corpus/         Source-document instructions
-docs/           Architecture and deployment guide
-scripts/        Windows development helper
-profile.json    Business-specific configuration
+RFP-Proposal-Writer/
+├── backend/
+│   ├── app/
+│   │   ├── agent/        # LangGraph workflow, prompts, state
+│   │   ├── ingestion/    # Parsing, section chunking, metadata, storage
+│   │   ├── retrieval/    # Hybrid search and rank fusion
+│   │   ├── api/          # Upload, status, review, and export routes
+│   │   └── export/       # DOCX generation
+│   └── tests/            # Unit tests
+├── frontend/             # Next.js upload and review interface
+├── evals/                # Retrieval evaluation set and runner
+├── corpus/               # Your source documents (git-ignored)
+├── docs/                 # Architecture and deployment guides
+├── profile.example.json  # Business configuration template
+└── docker-compose.yml
 ```
 
-## A short walkthrough
+## Current limitations
 
-Use sample documents, upload an RFP, inspect extracted requirements and draft citations, request a revision, and show the resulting DOCX. Describe the review interrupt and export restriction separately when presenting the prototype.
+- The export endpoint does not yet check whether a draft was approved; review is enforced in the workflow, not on the server.
+- Workflow checkpoints are held in memory (`MemorySaver`), so in-progress reviews do not survive a restart.
+- The citation audit is model-assisted and does not guarantee factual accuracy.
+- The live link hosts the interface only; generating proposals needs the API, a database, an indexed corpus, and a model key.
+
+## License
+
+Released under the [MIT License](LICENSE).
